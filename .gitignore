@@ -1,0 +1,9 @@
+node_modules/
+.vercel/
+dist/
+*.local
+test-results/
+playwright-report/
+*.tsbuildinfo
+
+.vercel

@@ -1,0 +1,93 @@
+import 'fake-indexeddb/auto'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { archiveReport, changeQuantity, currentSession, db, exportDatabase, getPreferences, getReport, initialize, recordScan, resetDatabase, restoreDatabase, setPreferences, today, totals } from './db'
+
+beforeEach(async () => { await resetDatabase(); await db.settings.clear(); await initialize() })
+afterEach(() => vi.useRealTimers())
+
+describe('local sales integrity', () => {
+  it('initializes safely twice and scans concurrently without losing quantities', async () => {
+    await Promise.all([initialize(), initialize()])
+    expect(await db.products.count()).toBe(8)
+    await Promise.all(Array.from({ length: 20 }, () => recordScan('4800016000013')))
+    expect(await db.sessions.count()).toBe(1)
+    const scans = await db.scans.toArray()
+    expect(scans).toHaveLength(1)
+    expect(totals(scans)).toEqual({ items: 20, value: 50000 })
+  })
+  it('keeps changed prices in separate rows and blocks fractional quantities', async () => {
+    await recordScan('4800016000013')
+    const product = (await db.products.where('barcode').equals('4800016000013').first())!
+    await db.products.update(product.id!, { price: 3000 })
+    await recordScan(product.barcode)
+    const rows = await db.scans.toArray()
+    expect(rows.map(row => row.price)).toEqual([2500, 3000])
+    await expect(changeQuantity(rows[0].id!, 1.5)).rejects.toThrow('whole number')
+    expect(totals(rows).value).toBe(5500)
+  })
+  it('rejects stale close-day reports and preserves immutable archive snapshots', async () => {
+    await setPreferences({ storeName: 'Maria’s store', paper: 'letter' })
+    await recordScan('4800016000013')
+    const id = (await currentSession())!.id!
+    const stale = await getReport(id)
+    await recordScan('4800016000013')
+    await expect(archiveReport(stale)).rejects.toThrow('changed in another window')
+    expect((await db.sessions.get(id))!.status).toBe('open')
+    const report = await getReport(id)
+    await archiveReport(report)
+    expect((await getPreferences()).storeName).toBe('Maria’s store')
+    const product = (await db.products.where('barcode').equals('4800016000013').first())!
+    await db.products.update(product.id!, { name: 'New name', price: 9999 })
+    const archived = await getReport(id)
+    expect(archived.session.storeName).toBe('Maria’s store')
+    expect(archived.session.paper).toBe('letter')
+    expect(archived.scans[0].name).toBe('Coca-Cola Original')
+    expect(archived.scans[0].price).toBe(2500)
+    await expect(changeQuantity(archived.scans[0].id!, 3)).rejects.toThrow('archived')
+  })
+  it('starts a new Philippine day after midnight and keeps the prior open day', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-09-27T15:59:00Z'))
+    expect(today()).toBe('2026-09-27')
+    await recordScan('4800016000013')
+    vi.setSystemTime(new Date('2026-09-27T16:01:00Z'))
+    expect(today()).toBe('2026-09-28')
+    await recordScan('4800016000013')
+    const sessions = await db.sessions.toArray()
+    expect(sessions.map(session => session.date)).toEqual(['2026-09-27', '2026-09-28'])
+    expect(await db.scans.count()).toBe(2)
+  })
+  it('validates restore before replacing data and round-trips a full backup', async () => {
+    await recordScan('4800016000013')
+    const backup = await exportDatabase()
+    const corrupt = structuredClone(backup)
+    corrupt.scans[0].sessionId = 999
+    await expect(restoreDatabase(corrupt)).rejects.toThrow('invalid scans')
+    expect(await db.scans.count()).toBe(1)
+    await resetDatabase()
+    expect(await db.products.count()).toBe(0)
+    await restoreDatabase(backup)
+    expect(await db.products.count()).toBe(8)
+    expect(await db.scans.count()).toBe(1)
+    const restored = await exportDatabase()
+    expect(restored.products).toEqual(backup.products)
+    expect(restored.scans).toEqual(backup.scans)
+  })
+  it('closes an older unfinished day without changing today’s report preferences', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-09-27T15:59:00Z'))
+    await setPreferences({ storeName: 'Yesterday’s store', paper: 'letter' })
+    await recordScan('4800016000013')
+    const yesterdayId = (await currentSession())!.id!
+    vi.setSystemTime(new Date('2026-09-27T16:01:00Z'))
+    await setPreferences({ storeName: 'Today’s store', paper: 'a4' })
+    await recordScan('4800016000013')
+    const oldReport = await getReport(yesterdayId)
+    expect(oldReport.session.storeName).toBe('Yesterday’s store')
+    expect(oldReport.session.paper).toBe('letter')
+    await archiveReport(oldReport)
+    expect((await getPreferences()).storeName).toBe('Today’s store')
+    expect((await getPreferences()).paper).toBe('a4')
+    expect((await currentSession())?.status).toBe('open')
+  })
+})
