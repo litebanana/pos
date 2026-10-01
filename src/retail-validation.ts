@@ -47,7 +47,7 @@ export function validateRetailRecords(data: Record<string, unknown>, schema: unk
     if ((status === 'received') !== !!receivedAt || (receivedAt && receivedAt < createdAt)) throw new Error('Invalid purchase receipt date.')
     return { id: key(v.id), supplierId: key(v.supplierId), supplierName: plain(v.supplierName, 100, 'supplier name', true), status, lines, notes: plain(v.notes, 200, 'purchase note'), createdAt, ...(receivedAt ? { receivedAt } : {}) }
   })
-  const stockMovements = rows<StockMovement>('stockMovements', 200_000, v => ({ id: key(v.id), productId: key(v.productId), name: plain(v.name, 120, 'product name', true), before: count(v.before, 'Stock'), after: count(v.after, 'Stock'), reason: plain(v.reason, 200, 'stock reason', true), operator: plain(v.operator, 100, 'operator', true), createdAt: stamp(v.createdAt), ...(v.unit !== undefined ? { unit: enumValue(v.unit, ['kg'] as const) } : {}) }))
+  const stockMovements = rows<StockMovement>('stockMovements', 200_000, v => ({ id: key(v.id), productId: key(v.productId), name: plain(v.name, 120, 'product name', true), before: count(v.before, 'Stock'), after: count(v.after, 'Stock'), reason: plain(v.reason, 200, 'stock reason'), operator: plain(v.operator, 100, 'operator', true), createdAt: stamp(v.createdAt), ...(v.unit !== undefined ? { unit: enumValue(v.unit, ['kg'] as const) } : {}) }))
   const tickets = rows<Ticket>('tickets', 2000, v => {
     if (!Array.isArray(v.rows) || !v.rows.length || v.rows.length > 2000) throw new Error('Invalid saved order items.')
     const rows = v.rows.map(validateCart)
@@ -58,7 +58,9 @@ export function validateRetailRecords(data: Record<string, unknown>, schema: unk
     const status = enumValue(v.status, ['open', 'closed'] as const), openedAt = stamp(v.openedAt)
     if (status === 'open' && (v.closedAt !== undefined || v.counted !== undefined || v.expected !== undefined)) throw new Error('An open shift cannot have closing totals.')
     if (status === 'closed' && (!Number.isSafeInteger(v.expected) || Math.abs(Number(v.expected)) > 99_999_999_999 || stamp(v.closedAt) < openedAt)) throw new Error('Invalid closed shift.')
-    return { id: key(v.id), status, opening: cents(v.opening), operator: plain(v.operator, 100, 'operator', true), openedAt, ...(status === 'closed' ? { closedAt: stamp(v.closedAt), counted: cents(v.counted), expected: Number(v.expected) } : {}) }
+    const review = v.reviewedAt !== undefined || v.reviewNote !== undefined
+    if (review && (status !== 'closed' || stamp(v.reviewedAt) < stamp(v.closedAt))) throw new Error('Invalid cash variance review.')
+    return { id: key(v.id), status, opening: cents(v.opening), operator: plain(v.operator, 100, 'operator', true), openedAt, ...(status === 'closed' ? { closedAt: stamp(v.closedAt), counted: cents(v.counted), expected: Number(v.expected) } : {}), ...(review ? { reviewedAt: stamp(v.reviewedAt), reviewNote: plain(v.reviewNote, 200, 'variance review note', true) } : {}) }
   })
   if (shifts.filter(v => v.status === 'open').length > 1) throw new Error('Only one cash shift can be open.')
   const cashMovements = rows<CashMovement>('cashMovements', 200_000, v => {

@@ -1,10 +1,11 @@
 import Dexie, { type Table } from 'dexie'
+import { assertCheckoutStorage } from './storage'
 import { checkedAdd, checkedTotals, validateBackup, validatePreferences, validateProduct } from './validation'
 import { assertOwner, lockOwner, type OwnerCredential } from './owner'
 import { cartPricing, cents, count, lineAmount, plain, proportion } from './pricing'
 import { staffSession, signOutStaff } from './staff-access'
 import { validateRetailSettings } from './retail-validation'
-import { retailDefaults } from './retail-types'
+import { retailDefaults, needsCashReview } from './retail-types'
 import { retailTables, type Customer, type Supplier, type PurchaseOrder, type StockMovement, type Ticket, type Shift, type CashMovement, type Employee, type TimeEntry, type Modifier, type CheckoutOptions } from './retail-types'
 export { categories, categoryColor, safeColor } from './validation'
 
@@ -226,13 +227,15 @@ export async function getReport(id: number): Promise<Report> {
   })
 }
 export async function archiveReport(report: Report) {
-  await db.transaction('rw', db.sessions, db.scans, db.settings, db.corrections, db.cart, async () => {
+  await db.transaction('rw', [db.sessions, db.scans, db.settings, db.corrections, db.cart, db.shifts], async () => {
     const session = await db.sessions.get(report.session.id!)
     if (!session || session.status !== 'open') throw new Error('This day was already closed in another window. Find its PDF in History.')
     const scans = await db.scans.where('sessionId').equals(session.id!).toArray()
     const preferences = await getPreferences()
     const corrections = await db.corrections.where('sessionId').equals(session.id!).toArray()
     if (await db.cart.count()) throw new Error('Complete checkout or empty the cart before closing the day.')
+    if (await db.shifts.filter(needsCashReview).count()) throw new Error('Review cash differences in Cash drawer before closing the day.')
+    if (await db.shifts.where('status').equals('open').count()) throw new Error('Count and close the open cash shift in Cash drawer before closing the day.')
     const isCurrentDay = session.date === today()
     if (JSON.stringify(scans) !== JSON.stringify(report.scans) || JSON.stringify(corrections) !== JSON.stringify(report.corrections ?? []) || (isCurrentDay && (preferences.storeName !== report.session.storeName || preferences.paper !== report.session.paper))) {
       throw new Error('The day changed in another window. Review the latest totals and close it again.')
@@ -435,6 +438,8 @@ async function ensureSession() {
   return session
 }
 export async function checkout(expected: CartItem[], payment: Payment, tendered: number, operator: string, options: CheckoutOptions = {}) {
+  // Check before opening the IndexedDB transaction; storage estimation is asynchronous.
+  await assertCheckoutStorage()
   if (!['cash', 'gcash', 'card', 'split'].includes(payment)) throw new Error('Choose a payment method.')
   operator = operator.trim()
   if (!operator || operator.length > 100 || /[\u0000-\u001f\u007f-\u009f]/u.test(operator)) throw new Error('Enter an operator name with up to 100 characters.')
@@ -548,14 +553,15 @@ export async function correctSale(saleId: number, action: 'void' | 'refund', rea
 export async function adjustStock(id: number, stock: number, reason: string) {
   if (!Number.isInteger(stock) || stock < 0 || stock > 1_000_000_000) throw new Error('Stock must be a whole number from 0 to 1,000,000,000.')
   reason = reason.trim()
-  if (!reason || reason.length > 200) throw new Error('Enter an adjustment reason with up to 200 characters.')
+  if (reason.length > 200) throw new Error('Adjustment reason must be up to 200 characters.')
   await db.transaction('rw', db.products, db.settings, db.audit, db.stockMovements, db.employees, async () => {
     await requireOwner()
     const product = await db.products.get(id)
     if (!product) throw new Error('The product no longer exists.')
+    if (product.stock !== undefined && product.stock === stock) throw new Error('Enter a quantity different from the current stock.')
     await db.products.update(id, { stock })
     await stockLog(product, product.stock ?? 0, stock, reason)
-    await logAction('stock', `${product.name}: ${product.stock ?? 'untracked'} → ${stock}. ${reason}`)
+    await logAction('stock', `${product.name}: ${product.stock ?? 'untracked'} → ${stock}${reason ? `. ${reason}` : ''}`)
   })
 }
 export function reportTotals(report: Report) {

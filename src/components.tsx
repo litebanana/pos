@@ -6,9 +6,9 @@ import { runWork, setFormDirty, useWorkState } from './work'
 import { stockFactor } from './pricing'
 
 export function Required() { return <span className="required-mark" aria-hidden="true"> *</span> }
-export function Field({ label, required = false, children }: { label: string; required?: boolean; children: ReactNode }) {
+export function Field({ label, required = false, children, className = '' }: { label: string; required?: boolean; children: ReactNode; className?: string }) {
   const marked = required || (isValidElement<{ required?: boolean }>(children) && children.props.required)
-  return <label className="field"><span>{label}{marked && <Required />}</span>{children}</label>
+  return <label className={`field${className ? ` ${className}` : ''}`}><span>{label}{marked && <Required />}</span>{children}</label>
 }
 export function Modal({ title, children, onClose, wide = false, busy = false, printable = false }: { title: string; children: ReactNode; onClose: () => void; wide?: boolean; busy?: boolean; printable?: boolean }) {
   const [, , saving] = useWorkState()

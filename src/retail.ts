@@ -1,6 +1,6 @@
-import { db, getPreferences, logAction, requireOwner, stockLog, type CartItem } from './db'
-import { count, cents, plain, rate } from './pricing'
-import { retailDefaults, type RetailSettings, type Customer, type Supplier, type PurchaseLine, type Ticket, type Employee } from './retail-types'
+import { db, getPreferences, logAction, requireOwner, stockLog, type CartItem, type Product } from './db'
+import { count, cents, plain, rate, lowStockAt, stockFactor } from './pricing'
+import { retailDefaults, needsCashReview, type RetailSettings, type Customer, type Supplier, type PurchaseLine, type Ticket, type Employee } from './retail-types'
 import { createOwnerCredential, lockOwner } from './owner'
 import { acceptStaff, signOutStaff, staffSession, verifyStaffPin } from './staff-access'
 import { validateProduct } from './validation'
@@ -29,6 +29,14 @@ export async function saveCustomer(raw: Customer) {
 export async function saveSupplier(raw: Supplier) {
   const value = { ...(raw.id ? { id: raw.id } : {}), name: plain(raw.name, 100, 'supplier name', true), phone: plain(raw.phone, 50, 'phone'), email: plain(raw.email, 120, 'email'), notes: plain(raw.notes, 200, 'notes') }
   await db.transaction('rw', db.suppliers, db.settings, db.audit, db.employees, async () => { await requireOwner(); if (value.id) await db.suppliers.put(value); else await db.suppliers.add(value); await logAction('supplier', `Saved ${value.name}`) })
+}
+export function suggestPurchase(lowStock: Product[]): PurchaseLine[] {
+  return lowStock.filter(product => product.id && product.stock !== undefined && product.stock <= lowStockAt(product)).map(product => ({
+    productId: product.id!, name: product.name,
+    // Refill to twice the alert threshold, or one selling unit when it is zero.
+    quantity: Math.min(9999 * stockFactor(product), Math.max(stockFactor(product), 2 * lowStockAt(product) - product.stock!)),
+    cost: product.cost ?? 0, ...(product.unit ? { unit: product.unit } : {}),
+  }))
 }
 export async function createPurchase(supplierId: number, lines: PurchaseLine[], notes: string) {
   if (!lines.length || lines.length > 500 || new Set(lines.map(line => line.productId)).size !== lines.length) throw new Error('Choose 1 to 500 distinct purchase items.')
@@ -154,6 +162,16 @@ export async function moveCash(direction: 'in' | 'out', amount: number, reason: 
 export async function closeShift(id: number, counted: number) {
   cents(counted, 'Counted cash')
   await db.transaction('rw', db.tables, async () => { await requireOwner(); const shift = await db.shifts.get(id); if (shift?.status !== 'open') throw new Error('This shift was already closed.'); if (await db.cart.count()) throw new Error('Complete or save the current cart before closing the shift.'); const expected = await expectedCash(id); await db.shifts.update(id, { counted, expected, status: 'closed', closedAt: new Date().toISOString() }); await logAction('shift', `Closed shift #${id}; difference ${(counted - expected) / 100}`) })
+}
+export async function reviewShiftVariance(id: number, note: string) {
+  note = plain(note, 200, 'variance review note', true)
+  await db.transaction('rw', db.tables, async () => {
+    await requireOwner()
+    const shift = await db.shifts.get(id)
+    if (!shift || shift.status !== 'closed' || !needsCashReview(shift)) throw new Error('This shift has no cash difference awaiting review.')
+    await db.shifts.update(id, { reviewedAt: new Date().toISOString(), reviewNote: note })
+    await logAction('shift review', `Reviewed shift #${id}; difference ${(shift.counted! - shift.expected!) / 100}; ${note}`)
+  })
 }
 export async function saveEmployee(name: string, role: Employee['role'], pin: string, id?: number, active = true) {
   name = plain(name, 100, 'employee name', true)

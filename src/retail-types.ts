@@ -8,7 +8,8 @@ export interface PurchaseLine { productId: number; name: string; quantity: numbe
 export interface PurchaseOrder { id?: number; supplierId: number; supplierName: string; status: 'ordered' | 'received' | 'cancelled'; lines: PurchaseLine[]; notes: string; createdAt: string; receivedAt?: string }
 export interface StockMovement { id?: number; productId: number; name: string; before: number; after: number; reason: string; createdAt: string; operator: string; unit?: 'kg' }
 export interface Ticket { id?: number; name: string; rows: CartItem[]; notes: string; dining: 'retail' | 'dine-in' | 'takeaway' | 'delivery'; customerId?: number; createdAt: string }
-export interface Shift { id?: number; operator: string; opening: number; openedAt: string; status: 'open' | 'closed'; closedAt?: string; counted?: number; expected?: number }
+export interface Shift { id?: number; operator: string; opening: number; openedAt: string; status: 'open' | 'closed'; closedAt?: string; counted?: number; expected?: number; reviewedAt?: string; reviewNote?: string }
+export const needsCashReview = (shift: Shift) => shift.counted !== undefined && shift.expected !== undefined && shift.counted !== shift.expected && !shift.reviewedAt
 export interface CashMovement { id?: number; shiftId: number; direction: 'in' | 'out'; amount: number; reason: string; operator: string; createdAt: string }
 export interface Employee { id?: number; name: string; role: 'cashier' | 'manager'; active: boolean; credential: OwnerCredential }
 export interface TimeEntry { id?: number; employeeId: number; name: string; startedAt: string; endedAt?: string }
