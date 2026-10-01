@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v3.1.0 — 2026-10-01
 
 - Sell-day attention chips: low stock, saved orders, open shift, cash-difference review, stale open days
 - Low-stock banner drafts a purchase order (refill to 2x threshold); receiving clears the alert
