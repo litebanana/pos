@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v3.3.0 — 2026-10-01
 
 - Backup-size watch: Settings auto-checks the full backup size on open,
   warns past 20 MB, and reports when exports are blocked past 25 MB
