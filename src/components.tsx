@@ -6,6 +6,7 @@ import { runWork, setFormDirty, useWorkState } from './work'
 import { stockFactor } from './pricing'
 
 export function Required() { return <span className="required-mark" aria-hidden="true"> *</span> }
+export function csv(rows: (string | number)[][]) { return '\uFEFF' + rows.map(row => row.map(value => { const text = String(value); return `"${(/^[=+\-@\t\r']/.test(text) ? "'" : '') + text.replaceAll('"', '""')}"` }).join(',')).join('\r\n') }
 export function Field({ label, required = false, children, className = '' }: { label: string; required?: boolean; children: ReactNode; className?: string }) {
   const marked = required || (isValidElement<{ required?: boolean }>(children) && children.props.required)
   return <label className={`field${className ? ` ${className}` : ''}`}><span>{label}{marked && <Required />}</span>{children}</label>

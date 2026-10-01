@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import JsBarcode from 'jsbarcode'
 import { db, money, today, totals, type Product, type Sale } from './db'
-import { Field, Modal } from './components'
+import { Field, Modal, csv } from './components'
 import { applyStocktake, clockEmployee, closeShift, combineTickets, createPurchase, discardTicket, expectedCash, finishPurchase, getRetailSettings, moveCash, openShift, resumeTicket, saveCustomer, saveEmployee, saveRetailSettings, saveSupplier, signInEmployee, signOutEmployee, splitTicket, suggestPurchase, reviewShiftVariance } from './retail'
 import { needsCashReview, type Shift, type Customer, type Employee, type PurchaseLine, type RetailSettings, type Supplier, type Ticket } from './retail-types'
 import { downloadText } from './views'
@@ -83,7 +83,6 @@ function Employees(feedback: Feedback) {
     {editing && <Modal title={employee ? 'Edit employee' : 'Add employee'} onClose={() => { setEditing(null); setFormDirty(false) }}><Form {...feedback} label="Save employee" submit={async data => { await saveEmployee(String(data.get('name')), data.get('role') as Employee['role'], String(data.get('pin')), employee?.id, data.get('active') === 'on'); setEditing(null); feedback.notify('Employee saved.') }}><Field label="Employee name" required><input name="name" required maxLength={100} defaultValue={employee?.name} /></Field><Field label="Employee role" required><select name="role" required defaultValue={employee?.role ?? 'cashier'}><option value="cashier">Cashier</option><option value="manager">Manager</option></select></Field><Field label={employee ? 'New PIN (leave empty to keep)' : 'New employee PIN'} required={!employee}><input name="pin" required={!employee} type="password" pattern="[0-9]{6,12}" minLength={6} maxLength={12} inputMode="numeric" autoComplete="new-password" /></Field><label className="check-field"><input name="active" type="checkbox" defaultChecked={employee?.active ?? true} />Active employee</label></Form></Modal>}
   </>
 }
-export function csv(rows: (string | number)[][]) { return '\uFEFF' + rows.map(row => row.map(value => { const text = String(value); return `"${(/^[=+\-@\t\r']/.test(text) ? "'" : '') + text.replaceAll('"', '""')}"` }).join(',')).join('\r\n') }
 function Analytics(_feedback: Feedback) {
   const data = useLiveQuery(async () => ({ sales: await db.sales.toArray(), scans: await db.scans.toArray(), corrections: await db.corrections.toArray(), employees: await db.employees.toArray() }), [], { sales: [], scans: [], corrections: [], employees: [] })
   const employees = new Map(data.employees.map(employee => [employee.id, employee.name]))

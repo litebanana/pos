@@ -27,7 +27,7 @@ Open **Store tools** in the header to choose Customers, Saved orders, Inventory,
 | Staff | Employee PINs, cashier/manager roles, employee sale identity | An owner PIN must be configured first; local app access controls, not server authentication |
 | Time clock | PIN-verified clock in/out, timestamps, CSV hours | Latest 100 entries shown/exported; all records retained in backups |
 | Analytics | Date range, daily trend, top products, category, employee/operator, payment, hour, discounts, tax, estimated profit | Philippine time; product/category/operator/payment/hour breakdowns show sales before refunds; summary and daily trend subtract refunds on the date recorded |
-| Export | Catalog, sales, refund, purchase, and time-clock CSV; receipt/report PDF | Spreadsheet formula prefixes escaped in CSV text |
+| Export | Catalog, sales, refund, purchase, time-clock, and activity CSV; receipt/report PDF | Spreadsheet formula prefixes escaped in CSV text |
 | Printing | Browser receipt printing and Code 128 barcode labels | Uses the device's browser/OS print support; verify actual printer and label size |
 | Customer display | Live cart and latest receipt in another browser window | Same browser profile and device; no phone-to-tablet or local-network connection |
 | Display | Light/dark theme, readable system fonts, phone cards, required-field asterisks | Theme saved locally |

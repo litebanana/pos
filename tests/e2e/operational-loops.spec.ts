@@ -4,7 +4,12 @@ import { productAction } from './product-helpers'
 async function navigate(page: Page, name: string) { await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name, exact: true }).click() }
 async function tools(page: Page, name: string) { await page.getByRole('button', { name: 'Store tools', exact: true }).click(); await page.getByLabel('Choose a store tool').selectOption(name) }
 async function scan(page: Page) { const input = page.getByRole('textbox', { name: 'Scan or enter barcode' }); await input.fill('4800016000013'); await input.press('Enter') }
-async function attemptArchive(page: Page) { await page.getByRole('button', { name: 'Close day', exact: true }).click(); await page.getByRole('button', { name: 'Close day & download', exact: true }).click() }
+async function attemptArchive(page: Page) {
+  await page.getByRole('button', { name: 'Close day', exact: true }).click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByLabel(/I exported a backup/).check()
+  await dialog.getByRole('button', { name: 'Close day & download', exact: true }).click()
+}
 test.beforeEach(async ({ page }) => { await page.clock.install(); await page.goto('/'); await expect(page.getByRole('button', { name: /^Coca-Cola Original/ })).toBeVisible() })
 
 test('low-stock banner drafts a purchase and receiving clears the alert', async ({ page }) => {

@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Close-day backup gate: archiving with a due backup requires explicit
+  acknowledgment or an export first; exporting clears the warning
+- Recent activity exports as CSV (owner access only) for security review
+- Backup notes hardening: regression tests prove oversized and
+  control-character notes in sales, cart, customers, scans, and activity
+  are rejected on restore without changing records
+- Shared spreadsheet-safe CSV helper moved to `src/components.tsx`
+
 ## v3.1.0 — 2026-10-01
 
 - Sell-day attention chips: low stock, saved orders, open shift, cash-difference review, stale open days

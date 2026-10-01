@@ -2,6 +2,26 @@
 
 Lightweight decision log. Newest first. Each entry: context, decision, consequence. Code refs are the enforcement point.
 
+## 2026-10-01 - Close-day backup acknowledgment instead of silent archiving
+
+Context: Day-close archives records on one device; a stale backup reminder is easy to miss, and a lost device means lost days.
+
+Decision: When a backup is due, the close-day dialog warns and disables archiving until the operator checks an acknowledgment or exports first. Exporting clears the gate. The warning is a plain notice, not a live region, so toast alerts keep a unique role.
+
+Consequence: One extra tap when backups lapse; no block when backups are current.
+
+Enforced in: `src/App.tsx:beginClose` close dialog, `tests/e2e/backup-safety.spec.ts`.
+
+## 2026-10-01 - Activity log stays local but exports as CSV
+
+Context: Security monitoring needs reviewable records; there is no server to ship logs to.
+
+Decision: Keep the append-only `audit` table local and owner-gated, and add a spreadsheet-safe CSV export (same formula-prefix escaping as other exports) in Settings, Recent activity.
+
+Consequence: Owners can review `Sale #...` entries off-device; the log remains not tamper-proof, as documented.
+
+Enforced in: `src/views.tsx:SettingsView`, `src/components.tsx:csv`.
+
 ## 2026-09-28 - Stay single-device offline, no backend
 
 Context: Small Philippine store needs checkout during internet loss; no ops budget for servers or payment integration.

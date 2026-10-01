@@ -1,6 +1,7 @@
 import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { currentSession, db, exportDatabase, getReport, initialize, recordScan, resetDatabase, restoreDatabase, saveProduct, summarizeHistory, totals, type Scan, type Session } from './db'
+import { addToCart, checkout, currentSession, db, exportDatabase, getReport, initialize, recordScan, resetDatabase, restoreDatabase, saveProduct, summarizeHistory, totals, type Scan, type Session } from './db'
+import { saveCustomer } from './retail'
 import { backupLimits, safeColor, validateBackup } from './validation'
 import { contentSecurityPolicy, nginxSecurityHeaders, offlineContentSecurityPolicy, staticHostHeaders } from '../security/headers'
 
@@ -24,6 +25,8 @@ describe('untrusted backup validation', () => {
     ['negative prices', backup => { backup.products[0].price = -1 }],
     ['invisible barcode controls', backup => { backup.products[0].barcode = '4800\u0000001' }],
     ['directional spoofing in report names', backup => { backup.scans[0].name = 'Product\u202E123' }],
+    ['oversized item notes', backup => { backup.scans[0].note = 'x'.repeat(201) }],
+    ['control characters in item notes', backup => { backup.scans[0].note = 'gift' + String.fromCharCode(0) + 'wrap' }],
     ['duplicate normalized barcodes', backup => { backup.products[1].barcode = ` ${backup.products[0].barcode} ` }],
     ['duplicate scan IDs', backup => { backup.scans.push({ ...backup.scans[0] }) }],
     ['duplicate preference records', backup => { backup.settings = [backup.settings.find(s => s.key === 'preferences')!, backup.settings.find(s => s.key === 'preferences')!] }],
@@ -38,6 +41,32 @@ describe('untrusted backup validation', () => {
     expect(remaining.sessions).toEqual(original.sessions)
     expect(remaining.scans).toEqual(original.scans)
     expect(remaining.settings).toEqual(original.settings)
+  })
+  it('rejects oversized and control-character notes in sales, cart, customers, and activity', async () => {
+    await addToCart('4800016000013', undefined, { modifiers: [], note: 'gift wrap' })
+    await checkout(await db.cart.toArray(), 'cash', 2500, 'Maria', { notes: 'leave at door' })
+    await saveCustomer({ name: 'Ana', phone: '', email: '', address: '', notes: 'prefers paper bag', card: '', balance: 0 })
+    await addToCart('4800016000013', undefined, { modifiers: [], note: 'gift wrap' })
+    const original = await exportDatabase()
+    const long = 'x'.repeat(201), sneaky = 'ok' + String.fromCharCode(7) + 'note'
+    const cases: [string, (backup: Backup) => void][] = [
+      ['oversized sale note', backup => { backup.sales[0].notes = long }],
+      ['control character in sale note', backup => { backup.sales[0].notes = sneaky }],
+      ['oversized cart note', backup => { backup.cart[0].note = long }],
+      ['oversized customer notes', backup => { backup.customers[0].notes = long }],
+      ['control character in customer notes', backup => { backup.customers[0].notes = sneaky }],
+      ['oversized activity details', backup => { backup.audit[0].detail = 'x'.repeat(501) }],
+    ]
+    for (const [label, mutate] of cases) {
+      const bad = structuredClone(original)
+      mutate(bad)
+      await expect(restoreDatabase(bad), label).rejects.toThrow()
+    }
+    const remaining = await exportDatabase()
+    expect(remaining.sales).toEqual(original.sales)
+    expect(remaining.cart).toEqual(original.cart)
+    expect(remaining.customers).toEqual(original.customers)
+    expect(remaining.audit).toEqual(original.audit)
   })
   it.each(['products', 'sessions', 'scans'] as const)('checks %s record limits before replacing records', async table => {
     const bad = await exportDatabase()
