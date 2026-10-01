@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v3.2.0 — 2026-10-01
 
 - Close-day backup gate: archiving with a due backup requires explicit
   acknowledgment or an export first; exporting clears the warning
