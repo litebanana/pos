@@ -57,6 +57,11 @@ test('exporting a backup first clears the close-day warning without a checkbox',
   await expect(page.getByRole('dialog')).toHaveCount(0)
 })
 
+test('settings shows the auto-checked backup size without a manual check', async ({ page }) => {
+  await navigate(page, 'Settings')
+  await expect(page.getByText(/Full backup: \d+\.\d\d MB of the 25 MB limit\./)).toBeVisible()
+})
+
 test('recent activity exports as a CSV containing recorded sales', async ({ page }) => {
   await scan(page)
   await pay(page)

@@ -2,6 +2,16 @@
 
 Lightweight decision log. Newest first. Each entry: context, decision, consequence. Code refs are the enforcement point.
 
+## 2026-10-01 - Warn at 80% of the backup cap instead of failing silently at 100%
+
+Context: Exports fail hard past 25 MB; stores only learned this when the download refused.
+
+Decision: Auto-check the serialized backup size when Settings opens. Past 20 MB show a warning to export off-device soon; past 25 MB report exports as blocked with remediation (trim saved orders/customers). Threshold helper `backupSizePressure()` keeps the rule testable.
+
+Consequence: One background serialization per Settings visit; no new data stored.
+
+Enforced in: `src/storage.ts`, `src/views.tsx:SettingsView`, `tests/e2e/backup-safety.spec.ts`.
+
 ## 2026-10-01 - Close-day backup acknowledgment instead of silent archiving
 
 Context: Day-close archives records on one device; a stale backup reminder is easy to miss, and a lost device means lost days.

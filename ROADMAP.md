@@ -30,7 +30,7 @@ These are open checks from `DEPLOYMENT-NOTE.md`, not code TODOs. No code change 
 
 ## Later (maintenance candidates, unscheduled)
 
-- Backup-size monitoring as tables grow toward the 25 MiB / record caps in `src/validation.ts`
+- Backup-size watch shipped (auto-check + 20 MB warning in Settings); remaining: per-table growth breakdown if stores ask for it
 - Stock movement history view is capped at latest 100; evaluate pagination if stores ask for it
 - Time entries view/export capped at latest 100; same pagination question
 - Printer/label-size presets only if a specific store printer is selected and available for testing

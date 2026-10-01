@@ -1,5 +1,6 @@
-export const storageExportPrompt = 'Browser storage is over 80% full. Checkout is paused. Export a full backup, then free device space before continuing.'
+import { backupLimits } from './validation'
 
+export const storageExportPrompt = 'Browser storage is over 80% full. Checkout is paused. Export a full backup, then free device space before continuing.'
 export async function estimateStorage(): Promise<StorageEstimate | undefined> {
   try {
     if (typeof navigator === 'undefined') return undefined
@@ -17,4 +18,11 @@ export async function assertCheckoutStorage() {
     error.name = 'StoragePressureError'
     throw error
   }
+}
+
+// Warn at 80% of the restore cap so stores act before exports start failing.
+export const backupSizeWarnBytes = Math.floor(backupLimits.bytes * .8)
+
+export function backupSizePressure(bytes: number) {
+  return Number.isFinite(bytes) && bytes > backupSizeWarnBytes
 }

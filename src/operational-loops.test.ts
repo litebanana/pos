@@ -4,7 +4,7 @@ import { addToCart, archiveReport, checkout, db, exportDatabase, getReport, init
 import { closeShift, createPurchase, finishPurchase, openShift, reviewShiftVariance, saveSupplier, suggestPurchase } from './retail'
 import { needsCashReview } from './retail-types'
 import { createOwnerCredential, lockOwner, unlockOwner } from './owner'
-import { estimateStorage, storageUnderPressure } from './storage'
+import { backupSizePressure, backupSizeWarnBytes, estimateStorage, storageUnderPressure } from './storage'
 import { validateBackup } from './validation'
 
 const barcode = '4800016000013'
@@ -101,4 +101,13 @@ it('handles unavailable, rejected, and invalid storage estimates without blockin
   vi.stubGlobal('navigator', { storage: { estimate: vi.fn().mockRejectedValue(new Error('Unavailable')) } })
   await sale()
   expect(await db.sales.count()).toBe(1)
+})
+
+it('warns at 80% of the backup restore cap so exports never fail without notice', async () => {
+  expect(backupSizeWarnBytes).toBe(20 * 1024 * 1024)
+  expect(backupSizePressure(0)).toBe(false)
+  expect(backupSizePressure(backupSizeWarnBytes)).toBe(false)
+  expect(backupSizePressure(backupSizeWarnBytes + 1)).toBe(true)
+  expect(backupSizePressure(25 * 1024 * 1024)).toBe(true)
+  expect(backupSizePressure(NaN)).toBe(false)
 })
